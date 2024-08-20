@@ -1,8 +1,14 @@
-import "./styles.css";
-import { Book, BookInformation } from "./lib/types";
-import { getBooks, getUsers, getReviews } from "./lib/api";
-import { useEffect, useState, FC } from "react";
-import Card from "./Card";
+import './styles.css';
+import {
+  Book,
+  BookInformation,
+  Review,
+  ReviewInformation,
+  User,
+} from './lib/types';
+import { getBooks, getUsers, getReviews } from './lib/api';
+import { useEffect, useState, FC } from 'react';
+import Card from './Card';
 
 // Техническое задание:
 // Доработать приложение App, чтобы в отрисованном списке
@@ -17,23 +23,31 @@ import Card from "./Card";
 // В объектах реализующих интерфейс Book указаны только uuid
 // пользователей и обзоров
 
-// // В объектах реализующих интерфейс BookInformation, ReviewInformation
+// В объектах реализующих интерфейс BookInformation, ReviewInformation
 // указана полная информация об пользователе и обзоре.
 
-const toBookInformation = (book: Book): BookInformation => {
+const toBookInformation = (
+  rawBookInfo: Book,
+  author?: User,
+  reviews?: ReviewInformation[]
+): BookInformation => {
   return {
-    id: book.id,
-    name: book.name || "Книга без названия",
-    author: { name: "Test Author", id: "id" },
-    reviews: [
-      { id: "test", text: "test text", user: { id: "sdf", name: "Reviewer" } }
-    ],
-    description: book.description
+    id: rawBookInfo.id,
+    name: rawBookInfo.name || 'Книга без названия',
+    author: author
+      ? author
+      : { name: 'Неизвестный автор', id: rawBookInfo.authorId },
+    reviews: reviews ?? [],
+    description: rawBookInfo.description,
   };
 };
 
 const App: FC = () => {
+  //TODO добавить обработку ошибок
   const [books, setBooks] = useState<Book[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -41,17 +55,54 @@ const App: FC = () => {
       setIsLoading(true);
       const fetchedBooks = await getBooks();
       setBooks(fetchedBooks);
+
       setIsLoading(false);
     };
+
+    const fetchUsers = async () => {
+      const fetchedUsers = await getUsers();
+      setUsers(fetchedUsers);
+    };
+    const fetchReviews = async () => {
+      const fetchedReviews = await getReviews();
+      setReviews(fetchedReviews);
+    };
+
     fetchBooks();
+    fetchUsers();
+    fetchReviews();
   }, []);
+
+  const buildReview = (id: string): ReviewInformation => {
+    const reviewer = reviews.find(review => id === review.id);
+    const user = users.find(user => user.id === reviewer?.userId);
+
+    return {
+      id: reviewer?.id || '',
+      text: reviewer?.text || '',
+      user: user ?? { id: '', name: '' },
+    };
+  };
+
+  const buildBookCard = (rawBookInfo: Book): BookInformation => {
+    const author: User | undefined = users.find(
+      user => user.id === rawBookInfo.authorId
+    );
+
+    const reviewsInfo: ReviewInformation[] = rawBookInfo.reviewIds.map(id =>
+      buildReview(id)
+    );
+
+    return toBookInformation(rawBookInfo, author, reviewsInfo);
+  };
 
   return (
     <div>
       <h1>Мои книги:</h1>
       {isLoading && <div>Загрузка...</div>}
       {!isLoading &&
-        books.map((b) => <Card key={b.id} book={toBookInformation(b)} />)}
+        //@ts-ignore
+        books.map(b => <Card key={b.id} book={buildBookCard(b)} />)}
     </div>
   );
 };
